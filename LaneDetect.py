@@ -279,11 +279,12 @@ for frameNum in range(1,len(test_images)-1):
                                           (x1N,imshape[0]-y1N)]], dtype=np.int32)
     color = [241,255,1]
     cv2.fillPoly(laneFill, vertices, color)
-    opacity = .1
+    opacity = .25
     blendedIm =cv2.addWeighted(laneFill,opacity,im,1-opacity,0,im)
     cv2.line(blendedIm,(x1,im.shape[0]-y1),(x2,imshape[0]-y2),(0,255,0),4) # plot line on color image
     cv2.line(blendedIm,(x1N,im.shape[0]-y1N),(x2N,imshape[0]-y2),(0,255,0),4) # plot line on color image
-    
+    b,g,r = cv2.split(blendedIm) # get rgb channels from matplotlib image
+    outputIm = cv2.merge((r,g,b)) # merge three channels to create openCV color image
     # Plot final output
     #plt.figure(10)
     #plt.imshow(blendedIm)
@@ -291,7 +292,7 @@ for frameNum in range(1,len(test_images)-1):
     
     
     # write the frame
-    videoOut.write(blendedIm)
+    videoOut.write(outputIm)
 
 # Release video
 videoOut.release()
