@@ -156,7 +156,7 @@ for frameNum in range(1,len(test_images)-1):
                             addedPos = True # note that we added a positive slope line
                     if slope < 0:
                         # Check angle of line w/ xaxis. dont want vertical/horizontal lines
-                        tanTheta = np.tan((abs(y2-y1))/(abs(x2+.0000000001-x1))) # tan(theta) value
+                        tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
                         ang = np.arctan(tanTheta)*180/np.pi
                         if abs(ang) < 85 and abs(ang) > 20:
                             slopePositiveLines.append([x1,y1,x2,y2,-slope]) # add negative slope line

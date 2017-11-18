@@ -14,11 +14,11 @@ import cv2
 import os
 
 
-#read_image_and_print_dims('test_images/solidWhiteCurve.jpg')
-test_images = [mpimg.imread('test_images/' + i) for i in os.listdir('test_images/')]
-test_image_names = ['test_images/'+i for i in os.listdir('test_images/')]
 
-# Go through steps to find and plot lane lines:
+# Get all images
+test_images = [mpimg.imread('test_video/videoFrames/' + i) for i in os.listdir('test_video/videoFrames/')]
+test_image_names = ['test_video/videoFrames/'+i for i in os.listdir('test_video/videoFrames/')]
+
 
 #----------------GET IMAGE-----------------
 im = test_images[0]
@@ -26,7 +26,6 @@ imshape = im.shape
 plt.figure(1)
 plt.imshow(im)
 plt.title(test_image_names[0])
-
 
 # -------------GREYSCALE IMAGE---------------
 # Grayscale one color channel
@@ -60,10 +59,12 @@ maxVal = 150
 edgesIm = cv2.Canny(smoothedIm, minVal, maxVal)
 plt.figure(4)
 implot = plt.imshow(edgesIm,cmap='gray')
+
 #plt.scatter([0],[imshape[0]])
 #plt.scatter([465],[320])
 #plt.scatter([475],[320])
 #plt.scatter([imshape[1]],[imshape[0]])
+
 plt.title('Edge Detection')
 
 
@@ -130,17 +131,26 @@ for currentLine in lines:
     for x1,y1,x2,y2 in currentLine:
         lineLength = ((x2-x1)**2 + (y2-y1)**2)**.5 # get line length
         if lineLength > 30: # if line is long enough
-            slope = (y2-y1)/(x2-x1) # get slope
-            if slope > 0: 
-                slopeNegativeLines.append([x1,y1,x2,y2,-slope]) # add positive slope line
-                yValues.append(y1)
-                yValues.append(y2)
-                addedPos = True # note that we added a positive slope line
-            if slope < 0:
-                slopePositiveLines.append([x1,y1,x2,y2,-slope]) # add negative slope line
-                yValues.append(y1)
-                yValues.append(y2)
-                addedNeg = True # note that we added a negative slope line
+            if x2 != x1: # dont divide by zero
+                slope = (y2-y1)/(x2-x1) # get slope line
+                if slope > 0: 
+                    # Check angle of line w/ xaxis. dont want vertical/horizontal lines
+                    tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
+                    ang = np.arctan(tanTheta)*180/np.pi
+                    if abs(ang) < 85 and abs(ang) > 20:
+                        slopeNegativeLines.append([x1,y1,x2,y2,-slope]) # add positive slope line
+                        yValues.append(y1)
+                        yValues.append(y2)
+                        addedPos = True # note that we added a positive slope line
+                if slope < 0:
+                    # Check angle of line w/ xaxis. dont want vertical/horizontal lines
+                    tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
+                    ang = np.arctan(tanTheta)*180/np.pi
+                    if abs(ang) < 85 and abs(ang) > 20:
+                        slopePositiveLines.append([x1,y1,x2,y2,-slope]) # add negative slope line
+                        yValues.append(y1)
+                        yValues.append(y2)
+                        addedNeg = True # note that we added a negative slope line
        
         
 # If we didn't get any positive lines, go though again and just add any positive slope lines         
@@ -149,9 +159,13 @@ if not addedPos:
         for x1,y1,x2,y2 in currentLine:
             slope = (y2-y1)/(x2-x1)
             if slope > 0:
-                slopeNegativeLines.append([x1,y1,x2,y2,-slope])
-                yValues.append(y1)
-                yValues.append(y2)
+                # Check angle of line w/ xaxis. dont want vertical/horizontal lines
+                tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
+                ang = np.arctan(tanTheta)*180/np.pi
+                if abs(ang) < 80 and abs(ang) > 15:
+                    slopeNegativeLines.append([x1,y1,x2,y2,-slope])
+                    yValues.append(y1)
+                    yValues.append(y2)
 
 # If we didn't get any negative lines, go through again and just add any negative slope lines
 if not addedNeg:
@@ -159,9 +173,13 @@ if not addedNeg:
         for x1,y1,x2,y2 in currentLine:
             slope = (y2-y1)/(x2-x1)
             if slope < 0:
-                slopePositiveLines.append([x1,y1,x2,y2,-slope])           
-                yValues.append(y1)
-                yValues.append(y2)
+                # Check angle of line w/ xaxis. dont want vertical/horizontal lines
+                tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
+                ang = np.arctan(tanTheta)*180/np.pi
+                if abs(ang) < 85 and abs(ang) > 15:
+                    slopePositiveLines.append([x1,y1,x2,y2,-slope])           
+                    yValues.append(y1)
+                    yValues.append(y2)
                
 
 if not addedPos or not addedNeg:
@@ -175,7 +193,8 @@ posSlopeMedian = np.median(positiveSlopes)
 posSlopeStdDev = np.std(positiveSlopes)
 posSlopesGood = []
 for slope in positiveSlopes:
-    if abs(slope-posSlopeMedian) < .9:
+   # if abs(slope-posSlopeMedian) < .9:
+   if abs(slope-posSlopeMedian) < posSlopeMedian*.2:
         posSlopesGood.append(slope)
 posSlopeMean = np.mean(np.asarray(posSlopesGood))
         
@@ -193,13 +212,26 @@ negSlopeMean = np.mean(np.asarray(negSlopesGood))
 # Positive Lines
 xInterceptPos = []
 for line in slopePositiveLines:
-    x1 = line[0]
-    y1 = im.shape[0]-line[1]
-    slope = line[4]
-    yIntercept = y1-slope*x1
-    xIntercept = -yIntercept/slope
-    xInterceptPos.append(xIntercept)
-xInterceptPosMean = np.mean(np.asarray(xInterceptPos))
+        x1 = line[0]
+        y1 = im.shape[0]-line[1] # y axis is flipped
+        slope = line[4]
+        yIntercept = y1-slope*x1
+        xIntercept = -yIntercept/slope # find x intercept based off y = mx+b
+        if xIntercept == xIntercept: # checks for nan
+            xInterceptPos.append(xIntercept) # add x intercept
+        
+xIntPosMed = np.median(xInterceptPos) # get median 
+xIntPosGood = [] # if not near median we get rid of that x point
+for line in slopePositiveLines:
+        x1 = line[0]
+        y1 = im.shape[0]-line[1]
+        slope = line[4]
+        yIntercept = y1-slope*x1
+        xIntercept = -yIntercept/slope
+        if abs(xIntercept-xIntPosMed) < .35*xIntPosMed: # check if near median
+            xIntPosGood.append(xIntercept)
+                
+xInterceptPosMean = np.mean(np.asarray(xIntPosGood)) # average of good x intercepts for positive line
 
 # Negative Lines 
 xInterceptNeg = []
@@ -209,8 +241,21 @@ for line in slopeNegativeLines:
     slope = line[4]
     yIntercept = y1-slope*x1
     xIntercept = -yIntercept/slope
-    xInterceptNeg.append(xIntercept)
-xInterceptNegMean = np.mean(np.asarray(xInterceptNeg))
+    if xIntercept == xIntercept: # check for nan
+            xInterceptNeg.append(xIntercept)
+            
+xIntNegMed = np.median(xInterceptNeg)
+xIntNegGood = []
+for line in slopeNegativeLines:
+    x1 = line[0]
+    y1 = im.shape[0]-line[1]
+    slope = line[4]
+    yIntercept = y1-slope*x1
+    xIntercept = -yIntercept/slope
+    if abs(xIntercept-xIntNegMed)< .35*xIntNegMed: 
+            xIntNegGood.append(xIntercept)
+            
+xInterceptNegMean = np.mean(np.asarray(xIntNegGood))
 
 # ----------------------PLOT LANE LINES------------------------------
 # Need end points of line to draw in. Have x1,y1 (xIntercept,im.shape[1]) where
@@ -266,24 +311,16 @@ vertices = np.array([[(x1,im.shape[0]-y1),(x2,im.shape[0]-y2),  (x2N,imshape[0]-
                                       (x1N,imshape[0]-y1N)]], dtype=np.int32)
 color = [241,255,1]
 cv2.fillPoly(laneFill, vertices, color)
-opacity = .4
+opacity = .25
 blendedIm =cv2.addWeighted(laneFill,opacity,im,1-opacity,0,im)
 cv2.line(blendedIm,(x1,im.shape[0]-y1),(x2,imshape[0]-y2),(0,255,0),4) # plot line on color image
 cv2.line(blendedIm,(x1N,im.shape[0]-y1N),(x2N,imshape[0]-y2),(0,255,0),4) # plot line on color image
+b,g,r = cv2.split(blendedIm) # get bgr channels
+outputIm = cv2.merge((r,g,b)) # make rgb
 
 # Plot final output
 plt.figure(10)
 plt.imshow(blendedIm)
 plt.title('Final Output')
 
-#lines_image = hough_lines(maskedIm, rho, theta, threshold, min_line_len, max_line_gap)
-#plt.figure(8)
-#plt.imshow(lines_image,cmap='gray')
-#plt.title('Lines Image')
-
-# Get 3 channel image of lines image
-#lines3Channel = cv2.cvtColor(lines_image, cv2.COLOR_GRAY2BGR)
-
-#-------------------------BLEND IMAGES-----------------------------------
-#dst =cv2.addWeighted(lines3Channel,1.,im,.8,0)
 
