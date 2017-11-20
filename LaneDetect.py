@@ -16,7 +16,7 @@ import os
 
 
 # Get all images
-test_images = [mpimg.imread('test_video/videoFrames/' + i) for i in os.listdir('test_video/videoFrames/')]
+test_images = [mpimg.imread('test_video2/videoFrames/' + i) for i in os.listdir('test_video2/videoFrames/')]
 #test_image_names = ['test_video/videoFrames/'+i for i in os.listdir('test_video/videoFrames/')]
 
 
@@ -30,12 +30,14 @@ imshape = im.shape
 # -------CREATE VIDEO WRITER------------------
 # Define the codec and create VideoWriter object
 fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-videoOut = cv2.VideoWriter('output.avi',fourcc, 20.0, (im.shape[1],im.shape[0]))
+videoOut = cv2.VideoWriter('output2.avi',fourcc, 20.0, (im.shape[1],im.shape[0]))
 
 for frameNum in range(1,len(test_images)-1):
 
-    print('Frame Number: ',frameNum)
-    im = mpimg.imread('test_video/videoFrames/'+str(frameNum)+'.jpg')
+    if frameNum%50 == 0:
+        print('Frame Number: ',frameNum)
+        
+    im = mpimg.imread('test_video2/videoFrames/'+str(frameNum)+'.jpg')
     imshape = im.shape
       
         
@@ -118,156 +120,160 @@ for frameNum in range(1,len(test_images)-1):
     max_line_gap = 100    # maximum gap in pixels between connectable line segments
     lines = cv2.HoughLinesP(maskedIm, rho, theta, threshold, np.array([]), 
                                 minLineLength=min_line_len, maxLineGap=max_line_gap)
-    # Draw all lines onto image
-    allLines = np.zeros_like(maskedIm)
-    for i in range(len(lines)):
-        for x1,y1,x2,y2 in lines[i]:
-            cv2.line(allLines,(x1,y1),(x2,y2),(255,255,0),2) # plot line
     
-    # Plot all lines found
-    #plt.figure(7)
-    #plt.imshow(allLines,cmap='gray')
-    #plt.title('All Hough Lines Found')
-       
-    #-----------------------Separate Lines Intro Positive/Negative Slope--------------------------
-    # Separate line segments by their slope to decide left line vs. the right line
-    slopePositiveLines = [] # x1 y1 x2 y2 slope
-    slopeNegativeLines = []
-    yValues = []
-    
-    # Loop through all lines
-    addedPos = False
-    addedNeg = False
-    for currentLine in lines:   
-        # Get points of current Line
-        for x1,y1,x2,y2 in currentLine:
-            lineLength = ((x2-x1)**2 + (y2-y1)**2)**.5 # get line length
-            if lineLength > 30: # if line is long enough
-                if x2 != x1: # dont divide by zero
-                    slope = (y2-y1)/(x2-x1) # get slope line
-                    if slope > 0: 
+    # Check if we got more than 1 line
+    if lines is not None and len(lines) > 2:
+            
+        # Draw all lines onto image
+        allLines = np.zeros_like(maskedIm)
+        for i in range(len(lines)):
+            for x1,y1,x2,y2 in lines[i]:
+                cv2.line(allLines,(x1,y1),(x2,y2),(255,255,0),2) # plot line
+        
+        # Plot all lines found
+        #plt.figure(7)
+        #plt.imshow(allLines,cmap='gray')
+        #plt.title('All Hough Lines Found')
+           
+        #-----------------------Separate Lines Intro Positive/Negative Slope--------------------------
+        # Separate line segments by their slope to decide left line vs. the right line
+        slopePositiveLines = [] # x1 y1 x2 y2 slope
+        slopeNegativeLines = []
+        yValues = []
+        
+        # Loop through all lines
+        addedPos = False
+        addedNeg = False
+        for currentLine in lines:   
+            # Get points of current Line
+            for x1,y1,x2,y2 in currentLine:
+                lineLength = ((x2-x1)**2 + (y2-y1)**2)**.5 # get line length
+                if lineLength > 30: # if line is long enough
+                    if x2 != x1: # dont divide by zero
+                        slope = (y2-y1)/(x2-x1) # get slope line
+                        if slope > 0: 
+                            # Check angle of line w/ xaxis. dont want vertical/horizontal lines
+                            tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
+                            ang = np.arctan(tanTheta)*180/np.pi
+                            if abs(ang) < 85 and abs(ang) > 20:
+                                slopeNegativeLines.append([x1,y1,x2,y2,-slope]) # add positive slope line
+                                yValues.append(y1)
+                                yValues.append(y2)
+                                addedPos = True # note that we added a positive slope line
+                        if slope < 0:
+                            # Check angle of line w/ xaxis. dont want vertical/horizontal lines
+                            tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
+                            ang = np.arctan(tanTheta)*180/np.pi
+                            if abs(ang) < 85 and abs(ang) > 20:
+                                slopePositiveLines.append([x1,y1,x2,y2,-slope]) # add negative slope line
+                                yValues.append(y1)
+                                yValues.append(y2)
+                                addedNeg = True # note that we added a negative slope line
+               
+                
+        # If we didn't get any positive lines, go though again and just add any positive slope lines         
+        if not addedPos:
+            for currentLine in lines:
+                for x1,y1,x2,y2 in currentLine:
+                    slope = (y2-y1)/(x2-x1)
+                    if slope > 0:
                         # Check angle of line w/ xaxis. dont want vertical/horizontal lines
                         tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
                         ang = np.arctan(tanTheta)*180/np.pi
-                        if abs(ang) < 85 and abs(ang) > 20:
-                            slopeNegativeLines.append([x1,y1,x2,y2,-slope]) # add positive slope line
+                        if abs(ang) < 80 and abs(ang) > 15:
+                            slopeNegativeLines.append([x1,y1,x2,y2,-slope])
                             yValues.append(y1)
                             yValues.append(y2)
-                            addedPos = True # note that we added a positive slope line
+        
+        # If we didn't get any negative lines, go through again and just add any negative slope lines
+        if not addedNeg:
+            for currentLine in lines:
+                for x1,y1,x2,y2 in currentLine:
+                    slope = (y2-y1)/(x2-x1)
                     if slope < 0:
                         # Check angle of line w/ xaxis. dont want vertical/horizontal lines
                         tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
                         ang = np.arctan(tanTheta)*180/np.pi
-                        if abs(ang) < 85 and abs(ang) > 20:
-                            slopePositiveLines.append([x1,y1,x2,y2,-slope]) # add negative slope line
+                        if abs(ang) < 85 and abs(ang) > 15:
+                            slopePositiveLines.append([x1,y1,x2,y2,-slope])           
                             yValues.append(y1)
                             yValues.append(y2)
-                            addedNeg = True # note that we added a negative slope line
-           
-            
-    # If we didn't get any positive lines, go though again and just add any positive slope lines         
-    if not addedPos:
-        for currentLine in lines:
-            for x1,y1,x2,y2 in currentLine:
-                slope = (y2-y1)/(x2-x1)
-                if slope > 0:
-                    # Check angle of line w/ xaxis. dont want vertical/horizontal lines
-                    tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
-                    ang = np.arctan(tanTheta)*180/np.pi
-                    if abs(ang) < 80 and abs(ang) > 15:
-                        slopeNegativeLines.append([x1,y1,x2,y2,-slope])
-                        yValues.append(y1)
-                        yValues.append(y2)
-    
-    # If we didn't get any negative lines, go through again and just add any negative slope lines
-    if not addedNeg:
-        for currentLine in lines:
-            for x1,y1,x2,y2 in currentLine:
-                slope = (y2-y1)/(x2-x1)
-                if slope < 0:
-                    # Check angle of line w/ xaxis. dont want vertical/horizontal lines
-                    tanTheta = np.tan((abs(y2-y1))/(abs(x2-x1))) # tan(theta) value
-                    ang = np.arctan(tanTheta)*180/np.pi
-                    if abs(ang) < 85 and abs(ang) > 15:
-                        slopePositiveLines.append([x1,y1,x2,y2,-slope])           
-                        yValues.append(y1)
-                        yValues.append(y2)
-                   
-    
-    if not addedPos or not addedNeg:
-        print('Not enough lines found')
-    
-    
-    #------------------------Get Positive/Negative Slope Averages-----------------------------------
-    # Average position of lines and extrapolate to the top and bottom of the lane.
-    positiveSlopes = np.asarray(slopePositiveLines)[:,4]
-    posSlopeMedian = np.median(positiveSlopes)
-    posSlopeStdDev = np.std(positiveSlopes)
-    posSlopesGood = []
-    for slope in positiveSlopes:
-       # if abs(slope-posSlopeMedian) < .9:
-       if abs(slope-posSlopeMedian) < posSlopeMedian*.2:
-            posSlopesGood.append(slope)
-    posSlopeMean = np.mean(np.asarray(posSlopesGood))
-            
-    
-    negativeSlopes = np.asarray(slopeNegativeLines)[:,4]
-    negSlopeMedian = np.median(negativeSlopes)
-    negSlopeStdDev = np.std(negativeSlopes)
-    negSlopesGood = []
-    for slope in negativeSlopes:
-        if abs(slope-negSlopeMedian) < .9:
-            negSlopesGood.append(slope)
-    negSlopeMean = np.mean(np.asarray(negSlopesGood))
+                       
         
-    #--------------------------Get Average x Coord When y Coord Of Line = 0----------------------------
-    # Positive Lines
-    xInterceptPos = []
-    for line in slopePositiveLines:
-            x1 = line[0]
-            y1 = im.shape[0]-line[1] # y axis is flipped
-            slope = line[4]
-            yIntercept = y1-slope*x1
-            xIntercept = -yIntercept/slope # find x intercept based off y = mx+b
-            if xIntercept == xIntercept: # checks for nan
-                xInterceptPos.append(xIntercept) # add x intercept
+        if not addedPos or not addedNeg:
+            print('Not enough lines found')
+        
+        
+        #------------------------Get Positive/Negative Slope Averages-----------------------------------
+        # Average position of lines and extrapolate to the top and bottom of the lane.
+        positiveSlopes = np.asarray(slopePositiveLines)[:,4]
+        posSlopeMedian = np.median(positiveSlopes)
+        posSlopeStdDev = np.std(positiveSlopes)
+        posSlopesGood = []
+        for slope in positiveSlopes:
+           # if abs(slope-posSlopeMedian) < .9:
+           if abs(slope-posSlopeMedian) < posSlopeMedian*.2:
+                posSlopesGood.append(slope)
+        posSlopeMean = np.mean(np.asarray(posSlopesGood))
+                
+        
+        negativeSlopes = np.asarray(slopeNegativeLines)[:,4]
+        negSlopeMedian = np.median(negativeSlopes)
+        negSlopeStdDev = np.std(negativeSlopes)
+        negSlopesGood = []
+        for slope in negativeSlopes:
+            if abs(slope-negSlopeMedian) < .9:
+                negSlopesGood.append(slope)
+        negSlopeMean = np.mean(np.asarray(negSlopesGood))
             
-    xIntPosMed = np.median(xInterceptPos) # get median 
-    xIntPosGood = [] # if not near median we get rid of that x point
-    for line in slopePositiveLines:
+        #--------------------------Get Average x Coord When y Coord Of Line = 0----------------------------
+        # Positive Lines
+        xInterceptPos = []
+        for line in slopePositiveLines:
+                x1 = line[0]
+                y1 = im.shape[0]-line[1] # y axis is flipped
+                slope = line[4]
+                yIntercept = y1-slope*x1
+                xIntercept = -yIntercept/slope # find x intercept based off y = mx+b
+                if xIntercept == xIntercept: # checks for nan
+                    xInterceptPos.append(xIntercept) # add x intercept
+                
+        xIntPosMed = np.median(xInterceptPos) # get median 
+        xIntPosGood = [] # if not near median we get rid of that x point
+        for line in slopePositiveLines:
+                x1 = line[0]
+                y1 = im.shape[0]-line[1]
+                slope = line[4]
+                yIntercept = y1-slope*x1
+                xIntercept = -yIntercept/slope
+                if abs(xIntercept-xIntPosMed) < .35*xIntPosMed: # check if near median
+                    xIntPosGood.append(xIntercept)
+                        
+        xInterceptPosMean = np.mean(np.asarray(xIntPosGood)) # average of good x intercepts for positive line
+        
+        # Negative Lines 
+        xInterceptNeg = []
+        for line in slopeNegativeLines:
             x1 = line[0]
             y1 = im.shape[0]-line[1]
             slope = line[4]
             yIntercept = y1-slope*x1
             xIntercept = -yIntercept/slope
-            if abs(xIntercept-xIntPosMed) < .35*xIntPosMed: # check if near median
-                xIntPosGood.append(xIntercept)
+            if xIntercept == xIntercept: # check for nan
+                    xInterceptNeg.append(xIntercept)
                     
-    xInterceptPosMean = np.mean(np.asarray(xIntPosGood)) # average of good x intercepts for positive line
-    
-    # Negative Lines 
-    xInterceptNeg = []
-    for line in slopeNegativeLines:
-        x1 = line[0]
-        y1 = im.shape[0]-line[1]
-        slope = line[4]
-        yIntercept = y1-slope*x1
-        xIntercept = -yIntercept/slope
-        if xIntercept == xIntercept: # check for nan
-                xInterceptNeg.append(xIntercept)
-                
-    xIntNegMed = np.median(xInterceptNeg)
-    xIntNegGood = []
-    for line in slopeNegativeLines:
-        x1 = line[0]
-        y1 = im.shape[0]-line[1]
-        slope = line[4]
-        yIntercept = y1-slope*x1
-        xIntercept = -yIntercept/slope
-        if abs(xIntercept-xIntNegMed)< .35*xIntNegMed: 
-                xIntNegGood.append(xIntercept)
-                
-    xInterceptNegMean = np.mean(np.asarray(xIntNegGood))
+        xIntNegMed = np.median(xInterceptNeg)
+        xIntNegGood = []
+        for line in slopeNegativeLines:
+            x1 = line[0]
+            y1 = im.shape[0]-line[1]
+            slope = line[4]
+            yIntercept = y1-slope*x1
+            xIntercept = -yIntercept/slope
+            if abs(xIntercept-xIntNegMed)< .35*xIntNegMed: 
+                    xIntNegGood.append(xIntercept)
+                    
+        xInterceptNegMean = np.mean(np.asarray(xIntNegGood))
     
     # ----------------------PLOT LANE LINES------------------------------
     # Need end points of line to draw in. Have x1,y1 (xIntercept,im.shape[1]) where
@@ -290,6 +296,18 @@ for frameNum in range(1,len(test_images)-1):
     x2 = int(round(x2))
     y1 = int(round(y1))
     y2 = int(round(y2))
+    
+    # Use filter so lines dont jump around too much
+    jumpThresh = 50
+    if 'x1Prev' in globals(): # check if we have a previous point
+        if abs(x1-x1Prev) > 3 and abs(x1-x1Prev) < jumpThresh: # if x pos differs from xprev too much just get the direction and move it a small amount
+            x1 = x1Prev + np.sign(x1-x1Prev)*1 # change x to be previous plus a little in right direction
+          #  print('Changed frame ',frameNum)
+            
+        if abs(x2-x2Prev) > 3 and abs(x2-x2Prev) < jumpThresh: # if x pos differs a lot, maybe we had the wrong line, so jumping is allowed then
+            x2 = x2Prev + np.sign(x2-x2Prev)*1
+        
+    # plot lines
     cv2.line(laneLines,(x1,im.shape[0]-y1),(x2,imshape[0]-y2),(255,255,0),2) # plot line
     cv2.line(colorLines,(x1,im.shape[0]-y1),(x2,imshape[0]-y2),(0,255,0),4) # plot line on color image
     
@@ -303,8 +321,28 @@ for frameNum in range(1,len(test_images)-1):
     x1N = int(round(x1N))
     x2N = int(round(x2N))
     y1N = int(round(y1N))
+    
+    if 'x1NPrev' in globals():
+        if abs(x1N-x1NPrev) > 3 and abs(x1N-x1NPrev) < jumpThresh:
+            x1N = x1NPrev + np.sign(x1N-x1NPrev)*1
+            
+        if abs(x2N-x2NPrev) > 3 and abs(x2N-x2NPrev) < jumpThresh:
+            x2N = x2NPrev + np.sign(x2N-x2NPrev)*1
+    
+   # print(x1N-x1NPrev)    
+    # plot lines
     cv2.line(laneLines,(x1N,imshape[0]-y1N),(x2N,imshape[0]-y2),(255,255,0),2)
     cv2.line(colorLines,(x1N,im.shape[0]-y1N),(x2N,imshape[0]-y2),(0,255,0),4) # plot line on color iamge
+    
+    
+    # Add previous values
+    x1Prev = x1
+    x2Prev = x2
+    y1Prev = y1
+    y2Prev = y2
+    x1NPrev = x1N
+    x2NPrev = x2N
+    y1NPrev = y1N
     
     # Plot lane lines
     #plt.figure(8)
